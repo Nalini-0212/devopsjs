@@ -98,13 +98,13 @@ pipeline {
                     )
                 ]) {
 
-                    sh """
-                        ssh -o StrictHostKeyChecking=no -i $EC2_KEY_FILE $EC2_USER@$EC2_IP '
+                    sh '''
+                        ssh -o StrictHostKeyChecking=no -i $EC2_KEY_FILE $EC2_USER@$EC2_IP "
                         cd ~/devopsjs &&
                         chmod +x ~devopsjs/scripts/deploy.sh
                         BRANCH_NAME=$BRANCH_NAME ~devopsjs/scripts/deploy.sh
-                        '
-                    """
+                        "
+                    '''
                 }
             }
         }
@@ -114,7 +114,7 @@ pipeline {
     post {
 
         success {
-            echo "Build ,Docker push and deployment completed successfully."
+            echo "Build ,Docker push and deployment completed successfully..."
         }
 
         failure {
