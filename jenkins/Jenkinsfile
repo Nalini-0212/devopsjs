@@ -97,12 +97,18 @@ pipeline {
         }
 
         always {
-            echo "Cleaning workspace..."
-
-            sh 'docker logout || true'
-            sh 'docker image prune -f || true'
-
-            cleanWs()
+            echo "Cleaning up..."
+            sh """
+            docker logout || true
+            docker image prune -f || true //remove dangling images
+            docker container prune -f || true //remove stopped containers
+            docker rmi -f react-app:latest || true //remove local image with latest tag
+            docker rmi -f $DEV_REPO:latest || true //remove dev latest image
+            docker rmi -f $DEV_REPO:$BUILD_NUMBER || true //remove dev build number image
+            docker rmi -f $PROD_REPO:latest || true //remove prod latest image
+            docker rmi -f $PROD_REPO:$BUILD_NUMBER || true //remove prod build number image
+            cleanWs() //clean workspace
+            """
         }
     }
 }
