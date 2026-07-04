@@ -90,6 +90,7 @@ pipeline {
                 ]) {
                     sh '''
                         ssh -o StrictHostKeyChecking=no -i $EC2_KEY_FILE $EC2_USER@$EC2_IP "
+                            echo \\"$DOCKERHUB_PASSWORD\\" | docker login -u \\"$DOCKERHUB_USERNAME\\" --password-stdin &&
                             if [ ! -d ~/devopsjs ]; then
                                 git clone -b main https://github.com/Nalini-0212/devopsjs.git ~/devopsjs
                             else
