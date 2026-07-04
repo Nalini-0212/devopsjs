@@ -1,0 +1,73 @@
+pipeline{
+    agent any
+    environment {
+        DEV_REPO = "naliniselv/react-app-dev"
+        PROD_REPO = "naliniselv/react-app-prod"
+        EC2_IP = "54.160.167.129"
+        CONTAINER_NAME = "react-app-container"
+    }
+    stages{
+        stage('checkout to repository'){
+            steps{
+                git branch: "${env.BRANCH_NAME}", url: 'https://github.com/Nalini-0212/devopsjs.git'
+            }
+        }
+        stage('build docker image'){
+            steps{
+                echo "Building docker image"
+                sh '''
+                chmod +x ./scripts/build.sh
+                ./scripts/build.sh 
+                '''
+            }
+        }
+        stage('Docker login'){
+            steps{
+                echo "Logging into Docker Hub"
+                withCredentials([usernamePassword(credentialsId: 'dockerhubcred', usernameVariable:'DOCKERHUB_USERNAME', passwordVariable: 'DOCKERHUB_PASSWORD')]){
+                    sh """
+                    echo "${DOCKERHUB_PASSWORD}" | docker login -u "${DOCKERHUB_USERNAME}" --password-stdin
+                    """
+                }
+            }
+        }
+        stage('Push to dev dockerhub repo'){
+            steps{
+                script{
+                    if (env.BRANCH_NAME == 'dev') {
+                    echo "pushing to dev docker hub repo..."
+                    docker tag react-app:latest ${env.DEV_REPO}:${BUILD_NUMBER}
+                    docker tag react-app:${BUILD_NUMBER} ${env.DEV_REPO}:latest
+                    docker push ${env.DEV_REPO}:${BUILD_NUMBER}
+                    docker push ${env.DEV_REPO}:latest
+                } else if (env.BRANCH_NAME == 'main') {
+                    echo "pushing to prod docker hub repo..."
+                    docker tag react-app:latest ${env.PROD_REPO}:${BUILD_NUMBER}
+                    docker tag react-app:${BUILD_NUMBER} ${env.PROD_REPO}:latest
+                    docker push ${env.PROD_REPO}:${BUILD_NUMBER}
+                    docker push ${env.PROD_REPO}:latest
+                } else {
+                    echo "Not pushing to Docker Hub for branch: ${env.BRANCH_NAME}"
+                   }
+
+                }
+                
+            }
+        }
+        post{
+            always{
+                echo "Cleaning up workspace"
+                cleanWs()
+            }
+            success{
+                echo "Build and push successful"
+            }
+            failure{
+                echo "Build or push failed"
+            }
+        }
+
+
+    }
+
+}
