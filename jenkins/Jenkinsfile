@@ -82,6 +82,11 @@ pipeline {
                         keyFileVariable: 'EC2_KEY_FILE',
                         usernameVariable: 'EC2_USER'
                     )
+                    usernamePassword(
+                        credentialsId: 'dockerhubcred',
+                        usernameVariable: 'DOCKERHUB_USERNAME',
+                        passwordVariable: 'DOCKERHUB_PASSWORD'
+                    )
                 ]) {
                     sh '''
                         ssh -o StrictHostKeyChecking=no -i $EC2_KEY_FILE $EC2_USER@$EC2_IP "
