@@ -83,31 +83,56 @@ pipeline {
                 }
             }
         }
+        
+        stage ('Deploy to EC2 From Prod Dev Docker') {
+            when {
+                branch 'main'
+            }
+            steps {
+                echo "Deploying from Prod Dev Docker to EC2 instance..."
+                withCredentials([
+                    sshUserPrivateKey(
+                        credentialsId: 'ec2-ssh-key',
+                        keyFileVariable: 'EC2_KEY_FILE',
+                        usernameVariable: 'EC2_USER'
+                    )
+                ]) {
+
+                    sh """
+                        ssh -o StrictHostKeyChecking=no -i $EC2_KEY_FILE $EC2_USER@$EC2_IP '
+                        cd ~/devopsjs &&
+                        chmod +x ~devopsjs/scripts/deploy.sh
+                        BRANCH_NAME=$BRANCH_NAME ~devopsjs/scripts/deploy.sh
+                        '
+                    """
+                }
+            }
+        }
 
     }
 
     post {
 
         success {
-            echo "Build and Docker push completed successfully."
+            echo "Build ,Docker push and deployment completed successfully."
         }
 
         failure {
-            echo "Build or push failed."
+            echo "Build or push failed or deployment failed. Please check the logs for details."
         }
 
         always {
             echo "Cleaning up..."
             sh """
             docker logout || true
-            docker image prune -f || true //remove dangling images
-            docker container prune -f || true //remove stopped containers
-            docker rmi -f react-app:latest || true //remove local image with latest tag
-            docker rmi -f $DEV_REPO:latest || true //remove dev latest image
-            docker rmi -f $DEV_REPO:$BUILD_NUMBER || true //remove dev build number image
-            docker rmi -f $PROD_REPO:latest || true //remove prod latest image
-            docker rmi -f $PROD_REPO:$BUILD_NUMBER || true //remove prod build number image
-            cleanWs() //clean workspace
+            docker image prune -f || true # remove dangling images
+            docker container prune -f || true # remove stopped containers
+            docker rmi -f react-app:latest || true # remove local image with latest tag
+            docker rmi -f $DEV_REPO:latest || true # remove dev latest image
+            docker rmi -f $DEV_REPO:$BUILD_NUMBER || true # remove dev build number image
+            docker rmi -f $PROD_REPO:latest || true # remove prod latest image
+            docker rmi -f $PROD_REPO:$BUILD_NUMBER || true # remove prod build number image
+            cleanWs() # clean workspace
             """
         }
     }
