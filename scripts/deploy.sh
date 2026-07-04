@@ -9,7 +9,7 @@ else
 fi
 CONTAINER_NAME="react-app-container"
 echo "Deploying $IMAGE_NAME to $CONTAINER_NAME"
-cd docker
+cd "${dirname $0}/../docker" # change to the docker directory one level up from the script's location
 docker pull $IMAGE_NAME # pull the latest image from the repository
 docker stop $CONTAINER_NAME || true # stop the existing container if it exists
 docker rm $CONTAINER_NAME || true # remove the existing container if it exists
