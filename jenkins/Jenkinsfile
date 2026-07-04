@@ -20,7 +20,6 @@ pipeline {
         stage('Build Docker Image') {
             steps {
                 echo "Building Docker image..."
-
                 sh '''
                     chmod +x ./scripts/build.sh
                     ./scripts/build.sh
@@ -31,7 +30,6 @@ pipeline {
         stage('Docker Login') {
             steps {
                 echo "Logging into Docker Hub..."
-
                 withCredentials([
                     usernamePassword(
                         credentialsId: 'dockerhubcred',
@@ -39,7 +37,6 @@ pipeline {
                         passwordVariable: 'DOCKERHUB_PASSWORD'
                     )
                 ]) {
-
                     sh '''
                         echo "$DOCKERHUB_PASSWORD" | docker login -u "$DOCKERHUB_USERNAME" --password-stdin
                     '''
@@ -50,46 +47,35 @@ pipeline {
         stage('Push Docker Image') {
             steps {
                 script {
-
                     if (env.BRANCH_NAME == 'dev') {
-
                         sh '''
                             echo "Pushing image to DEV repository..."
-
                             docker tag react-app:latest $DEV_REPO:$BUILD_NUMBER
                             docker tag react-app:latest $DEV_REPO:latest
-
                             docker push $DEV_REPO:$BUILD_NUMBER
                             docker push $DEV_REPO:latest
                         '''
-
                     } else if (env.BRANCH_NAME == 'main') {
-
                         sh '''
                             echo "Pushing image to PROD repository..."
-
                             docker tag react-app:latest $PROD_REPO:$BUILD_NUMBER
                             docker tag react-app:latest $PROD_REPO:latest
-
                             docker push $PROD_REPO:$BUILD_NUMBER
                             docker push $PROD_REPO:latest
                         '''
-
                     } else {
-
                         echo "Skipping Docker push for branch: ${env.BRANCH_NAME}"
-
                     }
                 }
             }
         }
-        
-        stage ('Deploy to EC2 From Prod Dev Docker') {
+
+        stage('Deploy to EC2 (Prod only)') {
             when {
                 branch 'main'
             }
             steps {
-                echo "Deploying from Prod Dev Docker to EC2 instance..."
+                echo "Deploying PROD build to EC2..."
                 withCredentials([
                     sshUserPrivateKey(
                         credentialsId: 'ec2-ssh-key',
@@ -97,17 +83,16 @@ pipeline {
                         usernameVariable: 'EC2_USER'
                     )
                 ]) {
-
                     sh '''
                         ssh -o StrictHostKeyChecking=no -i $EC2_KEY_FILE $EC2_USER@$EC2_IP "
-                        if [ ! -d ~/devopsjs ]; then
-                        git clone https://github.com/Nalini-0212/devopsjs.git ~/devopsjs # clone the home repository if it doesn't exist
-                        else 
-                        cd ~/devopsjs && git pull origin main
-                        fi &&
-                        cd ~/devopsjs &&
-                        chmod +x ./scripts/deploy.sh
-                        BRANCH_NAME=$BRANCH_NAME ./scripts/deploy.sh
+                            if [ ! -d ~/devopsjs ]; then
+                                git clone -b main https://github.com/Nalini-0212/devopsjs.git ~/devopsjs
+                            else
+                                cd ~/devopsjs && git fetch origin main && git checkout main && git pull origin main
+                            fi &&
+                            cd ~/devopsjs &&
+                            chmod +x ./scripts/deploy.sh &&
+                            BRANCH_NAME=main ./scripts/deploy.sh
                         "
                     '''
                 }
@@ -117,31 +102,34 @@ pipeline {
     }
 
     post {
-
         success {
-            echo "Build ,Docker push and deployment completed successfully..."
+            echo "Build, Docker push and deployment completed successfully..."
         }
-
         failure {
             echo "Build or push failed or deployment failed. Please check the logs for details."
         }
-
         always {
             echo "Cleaning up..."
             sh """
-            docker logout || true
-            docker image prune -f || true # remove dangling images
-            docker container prune -f || true # remove stopped containers
-            docker rmi -f react-app:latest || true # remove local image with latest tag
-            if (env.BRANCH_NAME == 'dev') {
-            docker rmi -f $DEV_REPO:latest || true # remove dev latest image
-            docker rmi -f $DEV_REPO:$BUILD_NUMBER || true
-            } else if (env.BRANCH_NAME == 'main') {
-            docker rmi -f $PROD_REPO:latest || true # remove prod latest image
-            docker rmi -f $PROD_REPO:$BUILD_NUMBER || true # remove prod build number image
-            }
-            cleanWs() # clean workspace
+                docker logout || true
+                docker image prune -f || true # remove dangling images
+                docker container prune -f || true # remove stopped containers
+                docker rmi -f react-app:latest || true
             """
+            script {
+                if (env.BRANCH_NAME == 'dev') {
+                    sh """
+                        docker rmi -f $DEV_REPO:latest || true
+                        docker rmi -f $DEV_REPO:$BUILD_NUMBER || true
+                    """
+                } else if (env.BRANCH_NAME == 'main') {
+                    sh """
+                        docker rmi -f $PROD_REPO:latest || true
+                        docker rmi -f $PROD_REPO:$BUILD_NUMBER || true
+                    """
+                }
+            }
+            cleanWs() // clean workspace
         }
     }
 }
