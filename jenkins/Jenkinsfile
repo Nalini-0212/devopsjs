@@ -81,7 +81,7 @@ pipeline {
                         credentialsId: 'ec2-ssh-key',
                         keyFileVariable: 'EC2_KEY_FILE',
                         usernameVariable: 'EC2_USER'
-                    )
+                    ),
                     usernamePassword(
                         credentialsId: 'dockerhubcred',
                         usernameVariable: 'DOCKERHUB_USERNAME',
