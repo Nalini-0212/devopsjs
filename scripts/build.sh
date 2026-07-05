@@ -1,3 +1,3 @@
 #!/bin/bash
 set -e
-docker build -t react-app:latest -f docker/Dockerfile .
+docker build -t ${IMAGE_NAME} -f docker/Dockerfile .
