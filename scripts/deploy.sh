@@ -1,8 +1,11 @@
 #!/bin/bash
 set -e
+
 echo "Pulling latest image..."
-docker pull $IMAGE_NAME # Pull the latest image from the registry
+docker pull $IMAGE_NAME
+
 echo "Stopping existing container..."
-docker compose -f docker/docker-compose.yml down || true # Ignore errors if the container is not running
+docker compose -f docker/docker-compose.yml down || true
+
 echo "Starting application..."
-docker compose -f docker/docker-compose.yml up -d --no-interactive # Start the application in detached mode
+IMAGE_NAME=$IMAGE_NAME docker compose -f docker/docker-compose.yml up -d --no-interactive
