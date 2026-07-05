@@ -2,34 +2,30 @@ pipeline {
     agent any
 
     environment {
-        DEV_REPO = "naliniselv/react-app-dev"
+        DEV_REPO  = "naliniselv/react-app-dev"
         PROD_REPO = "naliniselv/react-app-prod"
-        EC2_IP = "13.201.33.16"
-        CONTAINER_NAME = "react-app-container"
     }
 
     stages {
 
         stage('Checkout Repository') {
             steps {
-                git branch: "${env.BRANCH_NAME}",
-                    url: 'https://github.com/Nalini-0212/devopsjs.git'
+                checkout scm
             }
         }
 
         stage('Build Docker Image') {
             steps {
-                echo "Building Docker image..."
+                echo "Building Docker Image..."
                 sh '''
-                    chmod +x ./scripts/build.sh
-                    ./scripts/build.sh
+                    chmod +x scripts/build.sh
+                    IMAGE_NAME=react-app ./scripts/build.sh
                 '''
             }
         }
 
         stage('Docker Login') {
             steps {
-                echo "Logging into Docker Hub..."
                 withCredentials([
                     usernamePassword(
                         credentialsId: 'dockerhubcred',
@@ -38,7 +34,8 @@ pipeline {
                     )
                 ]) {
                     sh '''
-                        echo "$DOCKERHUB_PASSWORD" | docker login -u "$DOCKERHUB_USERNAME" --password-stdin
+                        echo "$DOCKERHUB_PASSWORD" | docker login \
+                        -u "$DOCKERHUB_USERNAME" --password-stdin
                     '''
                 }
             }
@@ -47,95 +44,109 @@ pipeline {
         stage('Push Docker Image') {
             steps {
                 script {
+
                     if (env.BRANCH_NAME == 'dev') {
+
                         sh '''
-                            echo "Pushing image to DEV repository..."
+                            echo "Tagging DEV image..."
+
                             docker tag react-app:latest $DEV_REPO:$BUILD_NUMBER
                             docker tag react-app:latest $DEV_REPO:latest
+
+                            echo "Pushing DEV image..."
+
                             docker push $DEV_REPO:$BUILD_NUMBER
                             docker push $DEV_REPO:latest
                         '''
+
                     } else if (env.BRANCH_NAME == 'main') {
+
                         sh '''
-                            echo "Pushing image to PROD repository..."
+                            echo "Tagging PROD image..."
+
                             docker tag react-app:latest $PROD_REPO:$BUILD_NUMBER
                             docker tag react-app:latest $PROD_REPO:latest
+
+                            echo "Pushing PROD image..."
+
                             docker push $PROD_REPO:$BUILD_NUMBER
                             docker push $PROD_REPO:latest
                         '''
+
                     } else {
-                        echo "Skipping Docker push for branch: ${env.BRANCH_NAME}"
+
+                        echo "Skipping Docker Push for branch ${env.BRANCH_NAME}"
+
                     }
                 }
             }
         }
 
-        stage('Deploy to EC2 (Prod only)') {
+        stage('Deploy Production') {
+
             when {
                 branch 'main'
             }
+
             steps {
-                echo "Deploying PROD build to EC2..."
-                withCredentials([
-                    sshUserPrivateKey(
-                        credentialsId: 'ec2-ssh-key',
-                        keyFileVariable: 'EC2_KEY_FILE',
-                        usernameVariable: 'EC2_USER'
-                    ),
-                    usernamePassword(
-                        credentialsId: 'dockerhubcred',
-                        usernameVariable: 'DOCKERHUB_USERNAME',
-                        passwordVariable: 'DOCKERHUB_PASSWORD'
-                    )
-                ]) {
-                    sh '''
-                        ssh -o StrictHostKeyChecking=no -i $EC2_KEY_FILE $EC2_USER@$EC2_IP "
-                            echo \\"$DOCKERHUB_PASSWORD\\" | docker login -u \\"$DOCKERHUB_USERNAME\\" --password-stdin &&
-                            if [ ! -d ~/devopsjs ]; then
-                                git clone -b main https://github.com/Nalini-0212/devopsjs.git ~/devopsjs
-                            else
-                                cd ~/devopsjs && git fetch origin main && git checkout main && git pull origin main
-                            fi &&
-                            cd ~/devopsjs &&
-                            chmod +x ./scripts/deploy.sh &&
-                            BRANCH_NAME=main ./scripts/deploy.sh
-                        "
-                    '''
-                }
+
+                echo "Deploying Production Application..."
+
+                sh '''
+                    export IMAGE_NAME=$PROD_REPO:latest
+
+                    chmod +x scripts/deploy.sh
+
+                    ./scripts/deploy.sh
+                '''
             }
         }
-
     }
 
     post {
+
         success {
-            echo "Build, Docker push and deployment completed successfully..."
+            echo "Pipeline completed successfully."
         }
+
         failure {
-            echo "Build or push failed or deployment failed. Please check the logs for details."
+            echo "Pipeline failed."
         }
+
         always {
-            echo "Cleaning up..."
-            sh """
+
+            sh '''
                 docker logout || true
-                docker image prune -f || true # remove dangling images
-                docker container prune -f || true # remove stopped containers
+
+                docker image prune -f || true
+
+                docker container prune -f || true
+
                 docker rmi -f react-app:latest || true
-            """
+            '''
+
             script {
+
                 if (env.BRANCH_NAME == 'dev') {
-                    sh """
+
+                    sh '''
                         docker rmi -f $DEV_REPO:latest || true
                         docker rmi -f $DEV_REPO:$BUILD_NUMBER || true
-                    """
-                } else if (env.BRANCH_NAME == 'main') {
-                    sh """
+                    '''
+
+                }
+
+                if (env.BRANCH_NAME == 'main') {
+
+                    sh '''
                         docker rmi -f $PROD_REPO:latest || true
                         docker rmi -f $PROD_REPO:$BUILD_NUMBER || true
-                    """
+                    '''
+
                 }
             }
-            cleanWs() // clean workspace
+
+            cleanWs()
         }
     }
 }
