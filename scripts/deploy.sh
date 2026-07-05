@@ -8,4 +8,4 @@ echo "Stopping existing container..."
 docker compose -f docker/docker-compose.yml down || true
 
 echo "Starting application..."
-IMAGE_NAME=$IMAGE_NAME docker compose -f docker/docker-compose.yml up -d --no-interactive
+IMAGE_NAME=$IMAGE_NAME docker compose -f docker/docker-compose.yml up -d
