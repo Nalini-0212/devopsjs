@@ -1,3 +1,7 @@
 #!/bin/bash
 set -e
-docker build -t ${IMAGE_NAME} -f docker/Dockerfile .
+
+echo "Building Docker image: $IMAGE_NAME"
+
+# Ensure Dockerfile path is correct
+docker build -t $IMAGE_NAME -f docker/Dockerfile .

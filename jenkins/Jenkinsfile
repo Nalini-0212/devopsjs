@@ -14,16 +14,6 @@ pipeline {
             }
         }
 
-        stage('Build Docker Image') {
-            steps {
-                echo "Building Docker Image..."
-                sh '''
-                    chmod +x scripts/build.sh
-                    IMAGE_NAME=react-app ./scripts/build.sh
-                '''
-            }
-        }
-
         stage('Docker Login') {
             steps {
                 withCredentials([
@@ -41,62 +31,54 @@ pipeline {
             }
         }
 
+        stage('Build Docker Image') {
+            steps {
+                echo "Building Docker Image..."
+                timeout(time: 15, unit: 'MINUTES') {
+                    script {
+                        def imageName = (env.BRANCH_NAME == 'main') ? env.PROD_REPO : env.DEV_REPO
+                        sh """
+                            chmod +x scripts/build.sh
+                            IMAGE_NAME=${imageName}:latest ./scripts/build.sh
+                        """
+                    }
+                }
+            }
+        }
+
         stage('Push Docker Image') {
             steps {
                 script {
-
                     if (env.BRANCH_NAME == 'dev') {
-
-                        sh '''
-                            echo "Tagging DEV image..."
-
+                        sh """
                             docker tag react-app:latest $DEV_REPO:$BUILD_NUMBER
                             docker tag react-app:latest $DEV_REPO:latest
-
-                            echo "Pushing DEV image..."
-
                             docker push $DEV_REPO:$BUILD_NUMBER
                             docker push $DEV_REPO:latest
-                        '''
-
+                        """
                     } else if (env.BRANCH_NAME == 'main') {
-
-                        sh '''
-                            echo "Tagging PROD image..."
-
+                        sh """
                             docker tag react-app:latest $PROD_REPO:$BUILD_NUMBER
                             docker tag react-app:latest $PROD_REPO:latest
-
-                            echo "Pushing PROD image..."
-
                             docker push $PROD_REPO:$BUILD_NUMBER
                             docker push $PROD_REPO:latest
-                        '''
-
+                        """
                     } else {
-
                         echo "Skipping Docker Push for branch ${env.BRANCH_NAME}"
-
                     }
                 }
             }
         }
 
         stage('Deploy Production') {
-
             when {
                 branch 'main'
             }
-
             steps {
-
                 echo "Deploying Production Application..."
-
                 sh '''
                     export IMAGE_NAME=$PROD_REPO:latest
-
                     chmod +x scripts/deploy.sh
-
                     ./scripts/deploy.sh
                 '''
             }
@@ -104,48 +86,33 @@ pipeline {
     }
 
     post {
-
         success {
             echo "Pipeline completed successfully."
         }
-
         failure {
             echo "Pipeline failed."
         }
-
         always {
-
             sh '''
                 docker logout || true
-
                 docker image prune -f || true
-
                 docker container prune -f || true
-
                 docker rmi -f react-app:latest || true
             '''
-
             script {
-
                 if (env.BRANCH_NAME == 'dev') {
-
                     sh '''
                         docker rmi -f $DEV_REPO:latest || true
                         docker rmi -f $DEV_REPO:$BUILD_NUMBER || true
                     '''
-
                 }
-
                 if (env.BRANCH_NAME == 'main') {
-
                     sh '''
                         docker rmi -f $PROD_REPO:latest || true
                         docker rmi -f $PROD_REPO:$BUILD_NUMBER || true
                     '''
-
                 }
             }
-
             cleanWs()
         }
     }
