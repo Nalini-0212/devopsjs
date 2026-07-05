@@ -51,15 +51,17 @@ pipeline {
                 script {
                     if (env.BRANCH_NAME == 'dev') {
                         sh """
-                            docker tag react-app:latest $DEV_REPO:$BUILD_NUMBER
-                            docker tag react-app:latest $DEV_REPO:latest
+                            echo "Tagging DEV image..."
+                            docker tag $DEV_REPO:latest $DEV_REPO:$BUILD_NUMBER
+                            echo "Pushing DEV image..."
                             docker push $DEV_REPO:$BUILD_NUMBER
                             docker push $DEV_REPO:latest
                         """
                     } else if (env.BRANCH_NAME == 'main') {
                         sh """
-                            docker tag react-app:latest $PROD_REPO:$BUILD_NUMBER
-                            docker tag react-app:latest $PROD_REPO:latest
+                            echo "Tagging PROD image..."
+                            docker tag $PROD_REPO:latest $PROD_REPO:$BUILD_NUMBER
+                            echo "Pushing PROD image..."
                             docker push $PROD_REPO:$BUILD_NUMBER
                             docker push $PROD_REPO:latest
                         """
@@ -97,7 +99,6 @@ pipeline {
                 docker logout || true
                 docker image prune -f || true
                 docker container prune -f || true
-                docker rmi -f react-app:latest || true
             '''
             script {
                 if (env.BRANCH_NAME == 'dev') {
